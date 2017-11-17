@@ -41,6 +41,34 @@ let rec copy_expression :
         (copy_attributes pexp_attributes)
     }
 
+and migrate_let_exception :
+  From.Parsetree.extension_constructor ->
+    From.Parsetree.expression ->
+    To.Parsetree.expression_desc
+  =
+  fun constructor expression ->
+    let location =
+      copy_location constructor.From.Parsetree.pext_loc in
+    let module_name = "M_" ^ constructor.From.Parsetree.pext_name.txt in
+    let letmodule_loc = To.Asttypes.{txt = module_name; loc = location} in
+    let pstr_desc =
+      To.Parsetree.Pstr_exception (copy_extension_constructor constructor) in
+    let exception_structure_item = {
+      To.Parsetree.pstr_desc;
+      pstr_loc = location;
+    } in
+    let structure = [exception_structure_item] in
+    let pmod_desc = To.Parsetree.Pmod_structure structure in
+    let module_expression = {
+      To.Parsetree.pmod_desc;
+      pmod_loc = location;
+      pmod_attributes = [];
+    } in
+    To.Parsetree.Pexp_letmodule (
+      letmodule_loc,
+      module_expression,
+      (copy_expression expression))
+
 and copy_expression_desc loc :
   From.Parsetree.expression_desc ->
     To.Parsetree.expression_desc
@@ -170,8 +198,8 @@ and copy_expression_desc loc :
         ((copy_loc (fun x  -> x) x0),
           (copy_module_expr x1),
           (copy_expression x2))
-  | From.Parsetree.Pexp_letexception _ ->
-      migration_error loc Def.Pexp_letexception
+  | From.Parsetree.Pexp_letexception (constructor, expression) ->
+      migrate_let_exception constructor expression
   | From.Parsetree.Pexp_assert x0 ->
       To.Parsetree.Pexp_assert
         (copy_expression x0)
